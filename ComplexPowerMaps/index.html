@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <style>
+            #canvas {
+                width: 500px;
+                height: 500px;
+            }
+        </style>
+        <title>Complex power maps fractal explorer</title>
+    </head>
+    <body style="background-color:black;">
+        <canvas id="glcanvas" width="100%" height="100%"></canvas>
+        
+        
+        
+        <script id="vs" type="notjs">
+attribute vec4 position;
+attribute vec2 uv;
+
+varying vec2 fraguv;
+
+void main() {
+  gl_Position = position;
+  fraguv=uv;
+}
+  </script>
+        
+<script id="fs" type="notjs">
+precision mediump float;
+
+varying vec2 fraguv;
+
+uniform float r;
+uniform float g;
+uniform float b;
+
+uniform float canvasWidth;
+uniform float canvasHeight;
+
+uniform float xMult;
+uniform float xOff;
+uniform float yMult;
+uniform float yOff;
+
+uniform float complexPower;
+
+float lin_remap(float value, float low1, float high1, float low2, float high2){
+    return low2 + (value - low1) * (high2 - low2) / (high1 - low1);
+}
+
+float canvasToWorldX(float canvasX){
+    return lin_remap(canvasX, canvasWidth*0.5-500.0, canvasWidth*0.5+500.0, -2.0, 2.0);
+}
+float canvasToWorldY(float canvasY){
+    return lin_remap(canvasY, canvasHeight*0.5-500.0, canvasHeight*0.5+500.0, -2.0, 2.0);
+}
+
+void main() {
+
+    float canvasX = fraguv.x * canvasWidth;
+    float canvasY = fraguv.y * canvasHeight;
+
+    float origX = canvasToWorldX(canvasX);
+    float origY = canvasToWorldY(canvasY);
+    //float origX=fraguv.x*4.0-2.0;
+    //float origY=fraguv.y*4.0-2.0;
+    
+    float x=origX;
+    float y=origY;
+    
+    float numIters=0.0;
+    
+    for(float i=0.0;i<50.0;i+=1.0){
+        float theta=atan(y,x);
+        float r=sqrt(x*x+y*y);
+        x = pow(r,complexPower)*cos(theta*complexPower) + xMult * origX + xOff;
+        y = pow(r,complexPower)*sin(theta*complexPower) + yMult * origY + yOff;
+        
+        if(r<4.0)numIters++;
+    }
+
+    gl_FragColor = vec4(1.0*numIters/50.0,1.0*numIters/50.0,1.0*numIters/50.0,1.0);
+    
+    if(length( vec2(origX-xMult,origY-yMult ) )<0.025)gl_FragColor=vec4(1.0,0.0,0.0,1.0);
+    if(length( vec2(origX-xOff,origY-yOff ) )<0.025)gl_FragColor=vec4(0.0,1.0,0.0,1.0);
+
+}
+  </script>
+        <script type="text/javascript" src="../jslibs/twgl-min.js"></script>
+        <script type="text/javascript" src="../jslibs/dat.gui.min.js"></script>
+        
+        <script type="text/javascript">
+            function getRelativeMousePosition(event, target) {
+                target = target || event.target;
+                var rect = target.getBoundingClientRect();
+
+                return {
+                    x: event.clientX - rect.left,
+                    y: event.clientY - rect.top,
+                }
+            }
+            function getNoPaddingNoBorderCanvasRelativeMousePosition(event, target) {
+                target = target || event.target;
+                var pos = getRelativeMousePosition(event, target);
+
+                pos.x = pos.x * target.width  / target.clientWidth;
+                pos.y = pos.y * target.height / target.clientHeight;
+
+                return pos;  
+            }
+            const canvas=document.querySelector("#glcanvas");
+//            canvas.width=1000;
+//            canvas.height=1000;
+            canvas.width=window.innerWidth;
+            canvas.height=window.innerHeight;
+            const gl = canvas.getContext("webgl");
+            console.log(gl.getParameter(gl.VERSION));
+            console.log(gl.getParameter(gl.SHADING_LANGUAGE_VERSION));
+            console.log(gl.getParameter(gl.VENDOR));
+            const programInfo = twgl.createProgramInfo(gl, ["vs", "fs"]);
+            
+            var gui = new dat.GUI({width: 400});
+            var guiOutput={
+                xMult: 0,
+                xOff: 0,
+                yMult: 0,
+                yOff: 0,
+                power: 2.0,
+                draggingOffset: false,
+                draggingMultiplier: false,
+                mandelbrot: function(x,y){
+                    guiOutput.xMult=x;
+                    guiOutput.xOff=0.0;
+                    guiOutput.yMult=y;
+                    guiOutput.yOff=0.0;
+                    guiOutput.power=2.0;
+                },
+                mandelbrot1: function(){
+                    guiOutput.mandelbrot(1.0,1.0);
+                },
+                julia: function(x,y){
+                    guiOutput.xMult=0.0;
+                    guiOutput.xOff=x;
+                    guiOutput.yMult=0.0;
+                    guiOutput.yOff=y;
+                    guiOutput.power=2.0;
+                },
+                julia1: function(){
+                    guiOutput.julia(-0.4,0.6);
+                },
+                julia2: function(){
+                    guiOutput.julia(0.258,0.0);
+                },
+                julia3: function(){
+                    guiOutput.julia(0.285,0.01);
+                },
+                julia4: function(){
+                    guiOutput.julia(0.45,0.1428);
+                },
+                julia5: function(){
+                    guiOutput.julia(-0.70176,-0.3842);
+                },
+                julia6: function(){
+                    guiOutput.julia(-0.835,-0.2321);
+                },
+                julia7: function(){
+                    guiOutput.julia(-0.8,0.156);
+                },
+                julia8: function(){
+                    guiOutput.julia(-0.7269,0.1889);
+                },
+                julia9: function(){
+                    guiOutput.julia(0.0,-0.8);
+                }
+            };
+            var quadraticMapFractal=gui.addFolder("Quadratic map fractals");
+            var floats = quadraticMapFractal.addFolder("Parameters");
+            floats.add(guiOutput,"xMult",-2.0,2.0).step(0.001).listen();
+            floats.add(guiOutput,"xOff",-2.0,2.0).step(0.001).listen();
+            floats.add(guiOutput,"yMult",-2.0,2.0).step(0.001).listen();
+            floats.add(guiOutput,"yOff",-2.0,2.0).step(0.001).listen();
+            floats.add(guiOutput,"power",-20.0,20.0).step(1.0).listen();
+            
+            var drags = quadraticMapFractal.addFolder("Dragging");
+            drags.add(guiOutput,"draggingOffset").listen();
+            drags.add(guiOutput,"draggingMultiplier").listen();
+            
+            window.addEventListener("mousemove", e=>{
+                const pos = getNoPaddingNoBorderCanvasRelativeMousePosition(e, gl.canvas);
+                
+                const x = (pos.x / gl.canvas.width  *  2 - 1)*2.0;
+                const y = (pos.y / gl.canvas.height * -2 + 1)*2.0;
+                if(guiOutput.draggingMultiplier){
+                    guiOutput.xMult=x;
+                    guiOutput.yMult=y;
+                }
+                if(guiOutput.draggingOffset){
+                    guiOutput.xOff=x;
+                    guiOutput.yOff=y;
+                }
+            });
+            window.addEventListener("click", e=>{
+                const pos = getNoPaddingNoBorderCanvasRelativeMousePosition(e, gl.canvas);
+//
+//                // pos is in pixel coordinates for the canvas.
+//                // so convert to WebGL clip space coordinates
+                guiOutput.draggingMultiplier=false;
+                guiOutput.draggingOffset=false;
+            });
+            
+            var presets = quadraticMapFractal.addFolder("Presets");
+            var pm = presets.addFolder("Mandelbrot presets");
+            
+            pm.add(guiOutput,"mandelbrot1");
+            
+            var jm = presets.addFolder("Julia presets");
+            jm.add(guiOutput,"julia1");
+            jm.add(guiOutput,"julia2");
+            jm.add(guiOutput,"julia3");
+            jm.add(guiOutput,"julia4");
+            jm.add(guiOutput,"julia5");
+            jm.add(guiOutput,"julia6");
+            jm.add(guiOutput,"julia7");
+            jm.add(guiOutput,"julia8");
+            jm.add(guiOutput,"julia9");
+
+            const arrays = {
+                position: [-1,-1,0,   1,-1,0,   -1,1,0,    -1,1,0,   1,-1,0,   1,1,0],
+                uv:      [0,0,0,    1,0,0,    0,1,0,     0,1,0,    1,0,0,   1,1,0]
+            };
+            const bufferInfo = twgl.createBufferInfoFromArrays(gl, arrays);
+
+            function render(time) {
+                twgl.resizeCanvasToDisplaySize(gl.canvas);
+                gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+                const uniforms = {
+                    xMult: guiOutput.xMult,
+                    xOff: guiOutput.xOff,
+                    yMult: guiOutput.yMult,
+                    yOff: guiOutput.yOff,
+                    complexPower: guiOutput.power,
+                    canvasWidth: gl.canvas.width,
+                    canvasHeight: gl.canvas.height
+                };
+
+                gl.useProgram(programInfo.program);
+                twgl.setBuffersAndAttributes(gl, programInfo, bufferInfo);
+                twgl.setUniforms(programInfo, uniforms);
+                twgl.drawBufferInfo(gl, bufferInfo);
+
+                requestAnimationFrame(render);
+            }
+            requestAnimationFrame(render);
+        </script>
+    </body>
+</html>
