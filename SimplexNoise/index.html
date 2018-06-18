@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Complex power maps fractal explorer</title>
+    </head>
+    <body style="background-color:black;">
+        <canvas id="glcanvas" width="100%" height="100%"></canvas>
+        <script type="text/javascript" src="../jslibs/twgl-min.js"></script>
+        <script type="text/javascript" src="../jslibs/dat.gui.min.js"></script>
+        <script type="text/javascript" src="../jslibs/stats.js"></script>
+        <script type="notjs" id="vertex">
+precision mediump float;
+        
+attribute vec4 position;
+attribute vec2 uv;
+
+varying vec2 fraguv;
+
+void main() {
+  gl_Position = position;
+  fraguv=uv;
+}
+        </script>
+        <script type="notjs" id="fragment">
+precision mediump float;
+
+uniform float canvasWidth;
+uniform float canvasHeight;
+
+varying vec2 fraguv;
+
+float lin_remap(float value, float low1, float high1, float low2, float high2){
+    return low2 + (value - low1) * (high2 - low2) / (high1 - low1);
+}
+
+float canvasToWorldX(float canvasX){
+    return lin_remap(canvasX, canvasWidth*0.5-500.0, canvasWidth*0.5+500.0, 0.0, 1.0);
+}
+float canvasToWorldY(float canvasY){
+    return lin_remap(canvasY, canvasHeight*0.5-500.0, canvasHeight*0.5+500.0, 0.0, 1.0);
+}
+
+#insert noise3D
+#insert hsv
+
+uniform float time;
+
+uniform bool doHSB;
+
+uniform bool doRound;
+uniform float roundTo;
+
+uniform bool doIsolines;
+uniform bool isoFill;
+uniform bool isoColScale;
+uniform float isoThick;
+uniform float isoR;
+uniform float isoG;
+uniform float isoB;
+
+void main(){
+
+    float canvasX = fraguv.x * canvasWidth;
+    float canvasY = fraguv.y * canvasHeight;
+
+    float x = canvasToWorldX(canvasX);
+    float y = canvasToWorldY(canvasY);
+    
+    float val=snoise(vec3(x,y,0.0)*1.0+vec3(0.0,0.0,time));
+    float rounded=floor(val*roundTo)/roundTo;
+    
+    float outVal=val;
+    if(doRound)outVal=rounded;
+    
+    vec4 grayscale=vec4(vec3(outVal*0.5+0.5),1.0);
+    vec4 hsv=vec4(hsv2rgb(vec3(outVal,1.0,1.0)),1.0);
+    vec4 outCol=vec4(0.0,0.0,0.0,1.0);
+    if(doHSB)outCol=hsv;
+    else outCol=grayscale;
+    
+    vec4 isoBG=vec4(isoR,isoG,isoB,1.0);
+    if(doIsolines){
+        if(abs(val-rounded)<isoThick){
+            if(isoFill){
+                if(isoColScale)outCol*=isoBG;
+                else outCol=isoBG;
+            } else{
+                //nothing
+            }
+        } else {
+            if(isoFill){
+                //nothing
+            } else{
+                if(isoColScale)outCol*=isoBG;
+                else outCol=isoBG;
+            }
+        }
+    }
+    gl_FragColor=outCol;
+
+}
+        </script>
+        <script type="text/javascript">
+            function loadFile(filePath) {
+                var result = null;
+                var xmlhttp = new XMLHttpRequest();
+                xmlhttp.open("GET", filePath, false);
+                xmlhttp.send();
+                if (xmlhttp.status==200) {
+                    result = xmlhttp.responseText;
+                }
+                return result;
+            }
+            function getRelativeMousePosition(event, target) {
+                target = target || event.target;
+                var rect = target.getBoundingClientRect();
+
+                return {
+                    x: event.clientX - rect.left,
+                    y: event.clientY - rect.top,
+                }
+            }
+            function getNoPaddingNoBorderCanvasRelativeMousePosition(event, target) {
+                target = target || event.target;
+                var pos = getRelativeMousePosition(event, target);
+
+                pos.x = pos.x * target.width  / target.clientWidth;
+                pos.y = pos.y * target.height / target.clientHeight;
+
+                return pos;  
+            }
+            const canvas=document.querySelector("#glcanvas");
+            canvas.width=window.innerWidth;
+            canvas.height=window.innerHeight;
+            const gl = canvas.getContext("webgl");
+            console.log(gl.getParameter(gl.VERSION));
+            console.log(gl.getParameter(gl.SHADING_LANGUAGE_VERSION));
+            console.log(gl.getParameter(gl.VENDOR));
+            function replaceFileFragment(fileName){
+                document.getElementById("fragment").innerHTML=document.getElementById("fragment").innerHTML.replace("#insert "+fileName, loadFile("../glsl_libs/"+fileName+".glsl"))
+            }
+            replaceFileFragment("noise3D");
+            replaceFileFragment("hsv");
+            const programInfo = twgl.createProgramInfo(gl, ["vertex", "fragment"]);
+            
+            var guiOutput={
+                doRound: false,
+                roundTo: 5,
+                
+                doIsolines: false,
+                isoFill: false,
+                isoColScale: false,
+                isoThick: 0.001,
+                isoR: 0.0,
+                isoG: 0.0,
+                isoB: 0.0
+            };
+            
+            var gui = new dat.GUI({width: 400});
+            
+            var rounding=gui.addFolder("Rounding");
+            rounding.add(guiOutput,"doRound");
+            rounding.add(guiOutput,"roundTo",0,100).step(1);
+            
+            var isoline=gui.addFolder("Isolines");
+            isoline.add(guiOutput,"doIsolines");
+            isoline.add(guiOutput,"isoFill");
+            isoline.add(guiOutput,"isoColScale");
+            isoline.add(guiOutput,"isoThick",0,0.1).step(0.0001);
+            isoline.add(guiOutput,"isoR",0,1).step(0.001);
+            isoline.add(guiOutput,"isoG",0,1).step(0.001);
+            isoline.add(guiOutput,"isoB",0,1).step(0.001);
+            
+            var anim=gui.addFolder("Animation");
+            
+            var stats=new Stats();
+            document.body.appendChild(stats.dom);
+            
+            const arrays = {
+                position: [-1,-1,0,   1,-1,0,   -1,1,0,    -1,1,0,   1,-1,0,   1,1,0],
+                uv:      [0,0,0,    1,0,0,    0,1,0,     0,1,0,    1,0,0,   1,1,0]
+            };
+            const bufferInfo = twgl.createBufferInfoFromArrays(gl, arrays);
+            
+            function render(time) {
+                stats.begin();
+                twgl.resizeCanvasToDisplaySize(gl.canvas);
+                gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+                const uniforms = {
+                    canvasWidth: gl.canvas.width,
+                    canvasHeight: gl.canvas.height,
+                    
+//                    time: time*0.00025,
+                    time: 0,
+                    
+                    doRound: guiOutput.doRound,
+                    roundTo: guiOutput.roundTo,
+                    
+                    doIsolines: guiOutput.doIsolines,
+                    isoColScale: guiOutput.isoColScale,
+                    isoFill: guiOutput.isoFill,
+                    isoThick: guiOutput.isoThick,
+                    isoR: guiOutput.isoR,
+                    isoG: guiOutput.isoG,
+                    isoB: guiOutput.isoB,
+                    
+                    doHSB: false
+                };
+
+                gl.useProgram(programInfo.program);
+                twgl.setBuffersAndAttributes(gl, programInfo, bufferInfo);
+                twgl.setUniforms(programInfo, uniforms);
+                twgl.drawBufferInfo(gl, bufferInfo);
+                stats.end();
+                requestAnimationFrame(render);
+            }
+            requestAnimationFrame(render);
+        </script>
+    </body>
+</html>
