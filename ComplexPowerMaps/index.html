@@ -31,6 +31,8 @@ varying vec2 fraguv;
 uniform bool doSmooth;
 uniform bool doHSB;
 uniform bool doDomainCol;
+uniform float dcBrightMult;
+uniform float dcBrightOff;
 
 uniform float canvasWidth;
 uniform float canvasHeight;
@@ -130,7 +132,7 @@ void main() {
     if(doDomainCol){
         float h=atan(z.y,z.x);
         float s=1.0-pow(2.0,-length(z));
-        float b=n;
+        float b=n*dcBrightMult+dcBrightOff;
         gl_FragColor=vec4(hsv2rgb(vec3(h,s,b)),1.0);
     }
     if(length( vec2(origX-xMult,origY-yMult ) )<0.025)gl_FragColor=vec4(1.0,0.0,0.0,1.0);
@@ -239,6 +241,8 @@ void main() {
                 doSmooth: false,
                 doHSB: false,
                 doDomainCol:false,
+                dcBrightOff:1,
+                dcBrightMult:0
             };
             var quadraticMapFractal=gui.addFolder("Quadratic map fractals");
             var params = quadraticMapFractal.addFolder("Parameters");
@@ -247,9 +251,9 @@ void main() {
             params.add(guiOutput,"yMult",-2.0,2.0).step(0.001).listen();
             params.add(guiOutput,"yOff",-2.0,2.0).step(0.001).listen();
             params.add(guiOutput,"power",-20.0,20.0).step(1.0).listen();
-            params.add(guiOutput,"scale",-5.0,5.0).step(0.01).listen();
-            params.add(guiOutput,"viewX",-3.0,3.0).step(0.01).listen();
-            params.add(guiOutput,"viewY",-3.0,3.0).step(0.01).listen();
+            params.add(guiOutput,"scale",0.001,400.0).step(0.001).listen();
+            params.add(guiOutput,"viewX",-30.0,30.0).step(0.01).listen();
+            params.add(guiOutput,"viewY",-30.0,30.0).step(0.01).listen();
             params.add(guiOutput,"normalDistanceMetric").listen();
             params.add(guiOutput,"resetOffsets");
             params.add(guiOutput,"resetMults");
@@ -258,6 +262,8 @@ void main() {
             displayOptions.add(guiOutput, "doSmooth").listen();
             displayOptions.add(guiOutput, "doHSB").listen();
             displayOptions.add(guiOutput, "doDomainCol").listen();
+            displayOptions.add(guiOutput,"dcBrightOff",-1,1).step(0.01).listen();
+            displayOptions.add(guiOutput,"dcBrightMult",-1,1).step(0.01).listen();
             
             var drags = quadraticMapFractal.addFolder("Dragging");
             drags.add(guiOutput,"draggingOffset").listen();
@@ -266,8 +272,8 @@ void main() {
             window.addEventListener("mousemove", e=>{
                 const pos = getNoPaddingNoBorderCanvasRelativeMousePosition(e, gl.canvas);
                 
-                const x = (pos.x / gl.canvas.width  *  2 - 1)*2.0;
-                const y = (pos.y / gl.canvas.height * -2 + 1)*2.0;
+                const x = (pos.x / gl.canvas.width  *  2 - 1)*1.0;
+                const y = (pos.y / gl.canvas.height * -2 + 1)*1.0;
                 if(guiOutput.draggingMultiplier){
                     guiOutput.xMult=x;
                     guiOutput.yMult=y;
@@ -291,7 +297,7 @@ void main() {
             
             pm.add(guiOutput,"mandelbrot1");
             
-            var jm = presets.addFolder("Julia presets");
+            var jm = presets.addFolder("Julia presets");//add text field to save/load presets, add buttons to do that too
             jm.add(guiOutput,"julia1");
             jm.add(guiOutput,"julia2");
             jm.add(guiOutput,"julia3");
@@ -320,6 +326,8 @@ void main() {
                     scale: guiOutput.scale,
                     viewX:guiOutput.viewX,
                     viewY:guiOutput.viewY,
+                    dcBrightMult:guiOutput.dcBrightMult,
+                    dcBrightOff:guiOutput.dcBrightOff,
                     normalDistanceMetric:guiOutput.normalDistanceMetric,
                     doSmooth: guiOutput.doSmooth,
                     doHSB: guiOutput.doHSB,
